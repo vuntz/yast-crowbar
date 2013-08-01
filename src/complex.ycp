@@ -87,14 +87,42 @@ symbol WriteDialog() {
 
   string current_network      = "admin";
 
+  define string GetFirstUser()
+  {
+    list<string> keys = maplist (string name, map n, users, { return name; });
+    return keys[0]:"crowbar";
+  }
+
+  // functions for handling username widget
+  define void InitUsername (string id) {
+    UI::ChangeWidget (`id (id), `Value, GetFirstUser());
+    UI::ChangeWidget (`id (id), `Enabled, !Crowbar::installed);
+  }
+
+  define void StoreUsername (string key, map event) {
+    string new_user = (string) UI::QueryWidget (`id(key), `Value);
+    string current_user = GetFirstUser();
+    if (new_user == current_user) return;
+
+    users[new_user] = users[current_user]:$[];
+    if (haskey (users, current_user)) {
+      users = remove(users, current_user);
+    }
+  }
+
+  define symbol HandleUsername (string key, map event) {
+    if (event["ID"]:nil == `next) StoreUsername (key, event);
+    return nil;
+  }
+
   // functions for handling password widget
   define void InitPassword (string id) {
-    UI::ChangeWidget (`id (id), `Value, users["crowbar","password"]:"");
+    UI::ChangeWidget (`id (id), `Value, users[GetFirstUser(),"password"]:"");
     UI::ChangeWidget (`id (id), `Enabled, !Crowbar::installed);
   }
 
   define void StorePassword (string key, map event) {
-    users["crowbar","password"] = UI::QueryWidget (`id(key), `Value);
+    users[GetFirstUser(),"password"] = UI::QueryWidget (`id(key), `Value);
   }
 
   define symbol HandlePassword (string key, map event) {
@@ -151,6 +179,17 @@ symbol WriteDialog() {
   /**
    * Validation function for widgets with time values
    */
+  define boolean ValidateUsername (string key, map event) {
+    if (UI::QueryWidget (`id("username"), `Value) == "")
+    {
+      // error popup
+      Popup::Error(_("The username is empty."));
+      UI::SetFocus (`id(key));
+      return false;
+    }
+    return true;
+  }
+
   define boolean ValidatePassword (string key, map event) {
     if (UI::QueryWidget (`id("password"), `Value) !=
         UI::QueryWidget (`id("repeat_password"), `Value))
@@ -533,6 +572,19 @@ Adapt them using 'Edit ranges' button."), current_network));
   }
 
 map<string, map> widget_description	= $[
+    "username" : $[
+	"widget"	: `textentry,
+	"opt"		: [ `hstretch ],
+	// textentry label
+	"label"		: _("Username for Crowbar Administrator"),
+	// help text
+	"help"		: _("<p>Enter the username for Crowbar administrator.</p>"),
+	"init"		: InitUsername,
+	"store"		: StoreUsername,
+	"handle"	: HandleUsername,
+	"validate_type"	: `function,
+	"validate_function"	: ValidateUsername,
+    ],
     "password" : $[
 	"widget"	: `password,
 	"opt"		: [ `hstretch ],
@@ -688,12 +740,13 @@ map get_tabs_descr () {
 	"header"	: _("Administration Settings"),
 	"contents"	: `HBox (`HSpacing(2), `VBox (
 	    `VSpacing (),
+            "username",
             "password",
             "repeat_password",
 	    `VStretch ()
 	), `HSpacing(2)),
 	"widget_names" : [
-            "password", "repeat_password"
+            "username", "password", "repeat_password"
 	],
     ],
     "network_mode"      : $[
