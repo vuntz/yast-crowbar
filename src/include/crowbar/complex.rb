@@ -469,11 +469,11 @@ module Yast
     def InitReposTable(id)
       repo_items = []
       @repos.each do |prod_name, platform|
-        platform.each do |name, repo|
+        platform.each do |repo_id, repo|
           repo_items <<
             Item(
-              Id(name),
-              name,
+              Id("#{prod_name}|#{repo_id}"),
+              repo["name"] || repo_id,
               repo["url"] || "",
               (repo["ask_on_error"] || false) ?  UI.Glyph(:CheckMark) : " ",
               prod_name
@@ -489,8 +489,7 @@ module Yast
     def HandleReposTable(key, event)
       selected = UI.QueryWidget(Id(key), :Value)
       if !selected.nil? && (selected != @current_repo || event["force"])
-        @current_repo = selected
-        @current_repo_platform = UI.QueryWidget(Id(key), Cell(selected, 3))
+        @current_repo_platform, @current_repo = selected.split("|")
         InitRepoURL("repo_url")
         InitAskOnError("ask_on_error")
       end
@@ -603,7 +602,6 @@ module Yast
     def HandleRepoURL(key, event)
       # store the value on exiting
       if event["ID"] == :next || event["EventReason"] == "ValueChanged"
-        @current_repo = UI.QueryWidget(Id("repos_table"), :Value) || ""
         StoreRepoURL(key, event)
         InitReposTable("repos_table")
       end
